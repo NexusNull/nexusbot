@@ -1,0 +1,5 @@
+worlds/
+node_modules
+.idea
+/config.json
+/data/Database.sqlite
