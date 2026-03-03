@@ -9,7 +9,6 @@ export const EventTypes = {
  * It will ensure that the connection stays connected and maintains the same state over those disconnects.
  */
 export default class TwitchEventSub extends EventEmitter {
-
     constructor() {
         super();
         this.socket = null;
@@ -30,8 +29,11 @@ export default class TwitchEventSub extends EventEmitter {
         this.socket = new WebSocket('wss://eventsub.wss.twitch.tv/ws?keepalive_timeout_seconds=30');
         this.socket.addEventListener('error', this.parseSocketError.bind(this));
         this.socket.addEventListener("message", this.parseSocketMessage.bind(this))
-
+        this.socket.addEventListener("close", this.handleWebsocketClose.bind(this))
         return new Promise((resolve)=>{this.connectedPromise = resolve});
+    }
+    async handleWebsocketClose(){
+        await this.connect();
     }
 
     async parseSocketMessage(socketMsg) {
