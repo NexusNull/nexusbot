@@ -40,11 +40,11 @@ If you would like this please create an [issue](https://github.com/NexusNull/nex
 ```
   nexusbot:
     image: "nexusbot:latest"
+    restart: unless-stopped
     pull_policy: if_not_present
     container_name: "nexusbot"
-    volume: 
+    volumes: 
       - ./docker-data/nexusbot/data:/opt/nexusbot/data
-      - ./docker-data/nexusbot/config.json:/opt/nexusbot/config.json
 ```
 Disclaimer: untested use at your own risk.
 

@@ -22,7 +22,7 @@ class Config {
         if(this.config !== null){
             throw new Error("Config already loaded")
         }
-        let config = await fs.readFile("./config.json", "utf8");
+        let config = await fs.readFile("./data/config.json", "utf8");
         this.config = JSON.parse(config);
     }
     async save(){
