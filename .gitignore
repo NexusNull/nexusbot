@@ -1,3 +1,4 @@
 /data/Database.sqlite
 /data/config.json
 /.idea/
+/node_modules/

@@ -1,6 +1,5 @@
 import https from "https";
 
-
 const config = await (await import("../../Config.js")).getInstance();
 const OAUTH = config.ensureValue("stream_notify.oauth", "string", "")
 const CLIENT_ID = config.ensureValue("stream_notify.client_id", "string", "")
@@ -83,4 +82,6 @@ class TwitchApi {
     }
 
 }
+
+
 export default TwitchApi = new TwitchApi();

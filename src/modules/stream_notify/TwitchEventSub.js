@@ -1,8 +1,7 @@
 import EventEmitter from "events";
-import TwitchApi from "./TwitchApi.js";
-
 export const EventTypes = {
-    "STREAM_ONLINE": "stream_online"
+    "STREAM_ONLINE": "stream_online",
+    "WEBSOCKET_CLOSED": "websocket_closed"
 }
 /**
  * This class handles the websocket connections with the twitch websocket api.
@@ -14,30 +13,26 @@ export default class TwitchEventSub extends EventEmitter {
         this.socket = null;
         this.sessionId = null;
         this.connectedPromise = null;
-        /**
-         * The channels we want to have a subscription to. we store this in case we lose connection.
-         * @type {Map<string, object>}
-         */
-        this.subscriptions = new Map();
+        this.socketListeners = {
+            socketOnOpen: this.socketOnOpen.bind(this),
+            socketOnError: this.socketOnError.bind(this),
+            socketOnClose: this.socketOnClose.bind(this),
+            socketOnMessage: this.socketOnMessage.bind(this),
+        }
     }
-
-    async init(){
-        await this.connect();
+    socketOnOpen(msg){
+        console.log("Websocket connection was opened")
+        console.log("open", msg);
     }
-
-    async connect() {
-        this.socket = new WebSocket('wss://eventsub.wss.twitch.tv/ws?keepalive_timeout_seconds=30');
-        this.socket.addEventListener('error', this.parseSocketError.bind(this));
-        this.socket.addEventListener("message", this.parseSocketMessage.bind(this))
-        this.socket.addEventListener("close", this.handleWebsocketClose.bind(this))
-        return new Promise((resolve)=>{this.connectedPromise = resolve});
+    socketOnError(msg){
+        console.log("error", msg);
     }
-    async handleWebsocketClose(){
-        await this.connect();
+    socketOnClose(){
+        console.log("Websocket connection was closed")
+        this.emit(EventTypes.WEBSOCKET_CLOSED)
     }
-
-    async parseSocketMessage(socketMsg) {
-        let data = JSON.parse(socketMsg.data.toString("utf8"));
+    async socketOnMessage(msg){
+        let data = JSON.parse(msg.data.toString("utf8"));
         if (!data.metadata || !data.metadata.message_type)
             return;
 
@@ -57,25 +52,30 @@ export default class TwitchEventSub extends EventEmitter {
         }
     }
 
+    async close(){
+        this.socket.close();
+    }
+
+    async init(){
+        await this.connect();
+    }
+
+    async connect() {
+        this.socket = new WebSocket('wss://eventsub.wss.twitch.tv/ws?keepalive_timeout_seconds=30');
+        this.socket.addEventListener("open", this.socketListeners.socketOnOpen);
+        this.socket.addEventListener("error", this.socketListeners.socketOnError);
+        this.socket.addEventListener("message", this.socketListeners.socketOnMessage);
+        this.socket.addEventListener("close", this.socketListeners.socketOnClose);
+        return new Promise((resolve)=>{this.connectedPromise = resolve});
+    }
+
     async handleSessionWelcome(data) {
         this.sessionId = data.payload.session.id
         this.connectedPromise();
-        for(let i of this.subscriptions){
-            if(this.subscriptions.has(i[0]))
-                return false;
-            this.subscriptions.set(i[0], {});
-            let res = await TwitchApi.subscribeStreamOnline(this.sessionId, i[0]);
-            console.log(res)
-            this.subscriptions.set(i[0], res);
-        }
     }
 
     handleSessionKeepalive(data) {
         //TODO this method should handle the case when the keepalive aren't being sent anymore.
-    }
-
-    parseSocketError(msg) {
-        console.log(msg)
     }
 
     handleNotification(payload) {
@@ -94,28 +94,5 @@ export default class TwitchEventSub extends EventEmitter {
             "broadcaster_user_login": payload.event.broadcaster_user_login,
             "broadcaster_user_id": payload.event.broadcaster_user_id,
         })
-    }
-
-    async addSubscription(broadcasterId){
-        if(this.subscriptions.has(broadcasterId))
-            return false;
-        this.subscriptions.set(broadcasterId, {});
-
-        let {res, req} = await TwitchApi.subscribeStreamOnline(this.sessionId, broadcasterId);
-
-        if(res.statusCode === 202){
-            this.subscriptions.set(broadcasterId, res);
-            return true;
-        } else
-            return false;
-    }
-
-    async removeSubscription(broadcasterId){
-        if(!this.subscriptions.has(broadcasterId))
-            return
-        this.subscriptions.delete(broadcasterId);
-        if(this.socket.connected){
-            //TODO make an unsub function : await this.subscribeStreamOnline(this.sessionId);
-        }
     }
 }

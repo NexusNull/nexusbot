@@ -6,7 +6,7 @@ process.on('uncaughtException', function (err) {
 });
 
 process.on('unhandledRejection', (reason, p) => {
-    console.error('Unhandled Rejection at:', p, 'reason:', reason);
+    console.error('Unhandled Rejection at:', p);
 });
 
 async function main() {
