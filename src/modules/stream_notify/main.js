@@ -25,6 +25,7 @@ export default class StreamNotifyModule {
         this.db = options.db;
         this.twitcheventsub = new TwitchEventSub();
         this.subscriptions = new Subscriptions(this.db)
+        console.log(this.client)
     }
 
     async init() {
@@ -43,7 +44,7 @@ export default class StreamNotifyModule {
         let channels = await guild.channels.fetch();
         let channel = await channels.get(NOTIFICATION_CONFIG_CHANNEL).fetch()
         let messages = await channel.messages.fetch();
-        messages = messages.filter(message => message.author.id === '1475752933684412437');
+        messages = messages.filter(message => message.author.id === this.client.user.id);
         for (let message of messages) {
             await message[1].delete();
         }
