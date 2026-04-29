@@ -1,7 +1,6 @@
 import https from "https";
 
 const config = await (await import("../../Config.js")).getInstance();
-const OAUTH = config.ensureValue("stream_notify.oauth", "string", "")
 const CLIENT_ID = config.ensureValue("stream_notify.client_id", "string", "")
 
 
@@ -10,7 +9,7 @@ const CLIENT_ID = config.ensureValue("stream_notify.client_id", "string", "")
  * There exists a twitch-api node module that could most likely replace this, but it is deprecated.
  */
 class TwitchApi {
-    async subscribeStreamOnline(sessionId, broadcasterId) {
+    async subscribeStreamOnline(sessionId, broadcasterId, accessToken) {
         return new Promise((resolve) => {
             console.log(`adding subscription for ${broadcasterId}`)
             let data = JSON.stringify({
@@ -33,11 +32,10 @@ class TwitchApi {
                 headers: {
                     'Content-Type': 'application/json; charset=utf-8',
                     'Content-Length': data.length,
-                    "Authorization": "Bearer " + OAUTH,
+                    "Authorization": "Bearer " + accessToken,
                     "Client-Id": CLIENT_ID
                 }
             };
-
             let req = https.request(options, (res) => {
                 let body = "";
                 res.on('data', function (chunk) {
@@ -54,7 +52,7 @@ class TwitchApi {
         })
     }
 
-    async getUsers(loginName) {
+    async getUsers(loginName, accessToken) {
         return new Promise((resolve) => {
             let options = {
                 hostname: 'api.twitch.tv',
@@ -62,7 +60,7 @@ class TwitchApi {
                 path: '/helix/users?login=' + loginName,
                 method: 'GET',
                 headers: {
-                    "Authorization": "Bearer " + OAUTH,
+                    "Authorization": "Bearer " + accessToken,
                     "Client-Id": CLIENT_ID
                 }
             };
@@ -81,6 +79,63 @@ class TwitchApi {
         })
     }
 
+    async refreshToken(clientId, clientSecret, refreshToken) {
+        return new Promise((resolve) => {
+            let data = `grant_type=refresh_token&refresh_token=${encodeURIComponent(refreshToken)}&client_id=${encodeURIComponent(clientId)}&client_secret=${encodeURIComponent(clientSecret)}`
+            let options = {
+                hostname: 'id.twitch.tv',
+                port: 443,
+                path: "/oauth2/token",
+                method: 'POST',
+                headers: {
+                    'Content-Type': "application/x-www-form-urlencoded",
+                }
+            };
+
+            let req = https.request(options, (res) => {
+                let body = "";
+                res.on('data', function (chunk) {
+                    body += chunk.toString();
+                });
+
+                res.on('end', function () {
+                    resolve({req, res, body: JSON.parse(body)});
+                });
+            });
+            req.write(data);
+            req.end();
+        })
+    }
+
+    async getToken(code, clientId, clientSecret) {
+        return new Promise((resolve) => {
+
+            let data = `code=${encodeURIComponent(code)}&redirect_uri=${encodeURIComponent("https://localhost:8080")}&grant_type=authorization_code&client_id=${encodeURIComponent(clientId)}&client_secret=${encodeURIComponent(clientSecret)}`
+            let options = {
+                hostname: 'id.twitch.tv',
+                port: 443,
+                path: "/oauth2/token",
+                method: 'POST',
+                headers: {
+                    'Content-Type': "application/x-www-form-urlencoded",
+                }
+            };
+
+            let req = https.request(options, (res) => {
+                let body = "";
+                res.on('data', function (chunk) {
+                    body += chunk.toString();
+                });
+
+                res.on('end', function () {
+                    resolve({req, res, body: JSON.parse(body)});
+                });
+            });
+            console.log(data)
+            req.write(data);
+            req.end();
+        })
+    }
 }
 
 

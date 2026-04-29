@@ -18,6 +18,11 @@ const NOTIFICATION_GUILD = config.ensureValue("stream_notify.guild", "string", "
 const NOTIFICATION_ROLE = config.ensureValue("stream_notify.role", "string", "")
 const NOTIFICATION_CONFIG_CHANNEL = config.ensureValue("stream_notify.config_channel", "string", "")
 
+const client_id = config.ensureValue("twitch.client_id", "string", "")
+const client_secret = config.ensureValue("twitch.client_secret", "string", "")
+const access_token = config.ensureValue("twitch.access_token", "string", "")
+const refresh_token = config.ensureValue("twitch.refresh_token", "string", "")
+
 export default class StreamNotifyModule {
 
     constructor(options) {
@@ -25,17 +30,28 @@ export default class StreamNotifyModule {
         this.db = options.db;
         this.twitcheventsub = new TwitchEventSub();
         this.subscriptions = new Subscriptions(this.db)
-        console.log(this.client)
+        this.accessToken = access_token;
     }
 
     async init() {
         await this.twitcheventsub.init();
+        await this.refreshToken();
+
         this.twitcheventsub.on(EventTypes.STREAM_ONLINE, this.sendGoLiveAnnouncement.bind(this))
         this.twitcheventsub.on(EventTypes.WEBSOCKET_CLOSED, this.reconnectWebSocket.bind(this))
         await this.setupListeners()
 
         await this.clearChannel();
         await this.createConfig();
+    }
+
+    async refreshToken(){
+        console.log("Refreshing token")
+        let {res, body} = await TwitchApi.refreshToken(client_id, client_secret, refresh_token);
+        if(res.statusCode !== 200){
+            console.error("Got non 200 status code on token refresh, something is fucked.")
+        }
+        this.accessToken = body.access_token;
     }
 
     async clearChannel() {
@@ -56,10 +72,16 @@ export default class StreamNotifyModule {
     async setupListeners(){
         let subs = await this.subscriptions.getAllSubscriptions();
         for (let sub of subs) {
-            let {res} = await TwitchApi.subscribeStreamOnline(this.twitcheventsub.sessionId, sub.broadcasterId);
+            let tmp = await TwitchApi.subscribeStreamOnline(this.twitcheventsub.sessionId, sub.broadcasterId, this.accessToken);
+            if(tmp.res.statusCode === 401){
+                await this.refreshToken();
+                tmp = await TwitchApi.subscribeStreamOnline(this.twitcheventsub.sessionId, sub.broadcasterId, this.accessToken);
+            }
+            const { res } = tmp;
 
-            if(res.statusCode !== 202)
+            if(res.statusCode !== 202){
                 console.log(`Failed to add subscription for ${sub.broadcasterId}`)
+            }
         }
     }
 
@@ -127,7 +149,7 @@ export default class StreamNotifyModule {
 
     async addChannelModalInteraction(interaction) {
         let channelId = interaction.components[0].component.value;
-        let {body} = await  TwitchApi.getUsers(channelId)
+        let {body} = await  TwitchApi.getUsers(channelId, this.accessToken)
         if(body.data.length === 0){
             return interaction.reply({content: "Error: This channel doesn't exist!", flags: MessageFlags.Ephemeral})
         } else {
@@ -137,7 +159,9 @@ export default class StreamNotifyModule {
         if (await this.subscriptions.getSubscription(channelId)) {
             return interaction.reply({content: "Error: The channel is already being watched!", flags: MessageFlags.Ephemeral})
         }
-        let {res} = await TwitchApi.subscribeStreamOnline(this.twitcheventsub.sessionId, channelId);
+        let {res} = await TwitchApi.subscribeStreamOnline(this.twitcheventsub.sessionId, channelId, this.accessToken);
+
+
 
         if(res.statusCode !== 202){
             console.log(`Failed to add subscription for ${sub.broadcasterId}`)
@@ -150,7 +174,7 @@ export default class StreamNotifyModule {
     async removeChannelModalInteraction(interaction) {
         let channelName = interaction.components[0].component.value;
         let channelId = 0;
-        let {body} = await  TwitchApi.getUsers(channelName)
+        let {body} = await  TwitchApi.getUsers(channelName, this.accessToken)
         if(body.data.length === 0){
             return interaction.reply({content: "Error: This channel doesn't exist!", flags: MessageFlags.Ephemeral})
         } else {

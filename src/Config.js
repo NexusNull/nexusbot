@@ -26,7 +26,7 @@ class Config {
         this.config = JSON.parse(config);
     }
     async save(){
-        await fs.writeFile("./config.json", JSON.stringify(this.config, null, 4));
+        await fs.writeFile("./data/config.json", JSON.stringify(this.config, null, 4));
     }
 
     ensureValue(path, type, defaultValue){
